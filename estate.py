@@ -25,6 +25,8 @@ from matplotlib.ticker import FuncFormatter
 EMAIL_LIST = ["finaltheory@hotmail.com"]
 EXCLUDE_CITY = ["Abbotsford", "Chilliwack", "Langley", "Mission", "unknown"]
 
+BC_ASSESSMENT_TIMEOUT = 2
+
 # days
 ESTATE_SLA = 3
 GOOD_PRICE_UPPER_THRESHOLD = 0.08
@@ -272,7 +274,7 @@ class Estate(object):
     def parse_info_from_bc_assessment(self, code):
         self.estate_code = code
         url = "https://www.bcassessment.ca/Property/Info/{}".format(self.estate_code)
-        r = requests.get(url)
+        r = requests.get(url, timeout=BC_ASSESSMENT_TIMEOUT)
         if r.status_code == 200:
             soup = BeautifulSoup(r.text, 'html.parser')
             def to_price(result):
@@ -294,7 +296,7 @@ class Estate(object):
 
     def __update_bc_assessment_impl(self):
         try:
-            r = requests.get("https://www.bcassessment.ca/Property/Search/GetByAddress", params={"addr": self.address})
+            r = requests.get("https://www.bcassessment.ca/Property/Search/GetByAddress", params={"addr": self.address}, timeout=BC_ASSESSMENT_TIMEOUT)
             if r.status_code == 200:
                 estate_id = r.json()[0]["value"]
                 if str(estate_id) == "0":
