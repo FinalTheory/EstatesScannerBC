@@ -483,6 +483,7 @@ class Worker(object):
             else:
                 good_price_estates_grouped[e.city] = [(r, e)]
         content = ""
+        self.new_estates = [e for e in self.new_estates if e.city not in EXCLUDE_CITY]
         if len(self.new_estates):
             content += u"<h2>新上线房产</h2><br>\n"
             content += '<table border="1" style="width:100%">\n'
