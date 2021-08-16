@@ -29,7 +29,7 @@ BC_ASSESSMENT_TIMEOUT = 2
 
 # days
 ESTATE_SLA = 3
-GOOD_PRICE_UPPER_THRESHOLD = 0.08
+GOOD_PRICE_UPPER_THRESHOLD = 0.12
 GOOD_PRICE_LOWER_THRESHOLD = -0.1
 
 SoldEstateSet = dict()
@@ -210,6 +210,7 @@ class Estate(object):
         self.estate_code = None
         self.area = None
         self.city = None
+        self.rew = None
         self.do_update(lineitem)
 
     def __str__(self):
@@ -230,11 +231,13 @@ class Estate(object):
         return content
 
     def get_rew_link(self):
-        try:
-            r = requests.get("https://www.rew.ca/properties/search/build", params={"listing_search[query]": self.id})
-            return "https://www.rew.ca{}".format(r.json()['path'])
-        except:
-            return ""
+        if self.rew is None:
+            try:
+                r = requests.get("https://www.rew.ca/properties/search/build", params={"listing_search[query]": self.id})
+                self.rew = "https://www.rew.ca{}".format(r.json()['path'])
+            except:
+                self.rew = ""
+        return self.rew
 
     def do_update(self, lineitem):
         self.id = lineitem[0]
@@ -382,6 +385,7 @@ class Worker(object):
         self.sold_query_list = []
         self.debug = bool(os.getenv('debug', 0))
         self.new_estates = []
+        self.previous_good_price_estates = {}
         self.new_sold_estate_count = 0
         self.current_day = self.get_date()
 
@@ -503,7 +507,7 @@ class Worker(object):
         content += u"<h2>低溢价房产</h2>\n"
         for city in good_price_estates_grouped.keys():
             content += "<br><br><h3>{}</h3>\n<br><br>".format(city)
-            content += '<table border="1" style="width:100%">\n'
+            content += '<table border="1">\n'
             content += u"""
             <tr>
             <th>加价比例</th>
@@ -517,7 +521,11 @@ class Worker(object):
             </tr>
             """
             for r, e in good_price_estates_grouped[city]:
-                content += "<tr>\n"
+                if e.id in self.previous_good_price_estates:
+                    tr = "<tr>"
+                else:
+                    tr = '<tr style="background-color:#FFF933">'
+                content += "{}\n".format(tr)
                 content += "<td>{:.2f}%</td>\n".format(r * 100)
                 content += e.html()
                 content += "</tr>\n"
@@ -526,6 +534,7 @@ class Worker(object):
         if self.debug:
             print(content)
         self.send_mail(content)
+        self.previous_good_price_estates = set([e.id for _, e in good_price_estates])
         
     def send_mail(self, content):
         sender = os.environ['smtp_email']
@@ -661,9 +670,7 @@ if __name__ == '__main__':
         with open(SOLD_FILE_NAME, 'rb') as handle:
             SoldEstateSet = pickle.load(handle)
             print("Successfully loaded {} sold estates.".format(len(SoldEstateSet)))
-    # for e in list(EstateSet.values()) + list(SoldEstateSet.values()):
-    #     if getattr(e, "city", None) is None:
-    #         setattr(e, "city", "unknown")
-    #     if getattr(e, "area", None) is None:
-    #         setattr(e, "area", "unknown")
+    for e in list(EstateSet.values()) + list(SoldEstateSet.values()):
+        if getattr(e, "rew", None) is None:
+            setattr(e, "rew", None)
     main()
