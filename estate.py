@@ -22,7 +22,7 @@ import numpy as np
 from dateutil import parser
 from matplotlib.ticker import FuncFormatter
 
-EMAIL_LIST = ["finaltheory@hotmail.com"]
+EMAIL_LIST = ["finaltheory@hotmail.com", "dingfengqin@sohu.com"]
 EXCLUDE_CITY = ["Abbotsford", "Chilliwack", "Langley", "Mission", "unknown"]
 
 BC_ASSESSMENT_TIMEOUT = 2
@@ -670,7 +670,7 @@ if __name__ == '__main__':
         with open(SOLD_FILE_NAME, 'rb') as handle:
             SoldEstateSet = pickle.load(handle)
             print("Successfully loaded {} sold estates.".format(len(SoldEstateSet)))
-    for e in list(EstateSet.values()) + list(SoldEstateSet.values()):
-        if getattr(e, "rew", None) is None:
-            setattr(e, "rew", None)
+    # for e in list(EstateSet.values()) + list(SoldEstateSet.values()):
+    #     if getattr(e, "rew", None) is None:
+    #         setattr(e, "rew", None)
     main()
