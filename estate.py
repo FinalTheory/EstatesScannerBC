@@ -6,6 +6,7 @@ import requests
 import pytz
 import pickle
 import js2py
+import traceback
 from datetime import timedelta, datetime, date
 from time import sleep
 from collections import namedtuple
@@ -23,12 +24,13 @@ from dateutil import parser
 from matplotlib.ticker import FuncFormatter
 
 EMAIL_LIST = ["finaltheory@hotmail.com", "dingfengqin@sohu.com"]
-EXCLUDE_CITY = ["Abbotsford", "Chilliwack", "Langley", "Mission", "unknown"]
+EXCLUDE_CITY = ["Abbotsford", "Chilliwack", "Langley", "Mission", "unknown", "Maple Ridge", "Port Moody", "Delta"]
 
 BC_ASSESSMENT_TIMEOUT = 2
 
 # days
 ESTATE_SLA = 3
+GOOD_SELL_PRICE_THRESHOLD = 0.10
 GOOD_PRICE_UPPER_THRESHOLD = 0.12
 GOOD_PRICE_LOWER_THRESHOLD = -0.1
 
@@ -216,11 +218,14 @@ class Estate(object):
     def __str__(self):
         return "{} | {} | {} | {} | {} | {} | {} | {}".format(self.id, self.city, self.area, self.address, self.list_price, self.history_price, self.assessment_price, self.history_sold_price)
 
-    def html(self):
+    def html(self, sell_price=False):
         content = '<td><a href="{}">{}</a></td>\n'.format(self.get_rew_link(), self.id)
         content += "<td>{}</td>\n".format(self.address)
         content += "<td>{}</td>\n".format(self.area)
-        content += "<td>{}</td>\n".format(self.list_price)
+        if sell_price:
+            content += "<td>{}</td>\n".format(self.sell_price)
+        else:
+            content += "<td>{}</td>\n".format(self.list_price)
         content += "<td>{}</td>\n".format(', '.join([str(s) for s in self.history_price]))
         if self.assessment_price is None:
             assessment = "NOT FOUND"
@@ -231,13 +236,13 @@ class Estate(object):
         return content
 
     def get_rew_link(self):
-        if self.rew is None:
+        if self.rew is None or len(self.rew) == 0:
             try:
                 r = requests.get("https://www.rew.ca/properties/search/build", params={"listing_search[query]": self.id})
                 self.rew = "https://www.rew.ca{}".format(r.json()['path'])
             except:
-                self.rew = ""
-        return self.rew
+                pass
+        return self.rew if self.rew is not None else ""
 
     def do_update(self, lineitem):
         self.id = lineitem[0]
@@ -378,6 +383,21 @@ class Estate(object):
                     print("Moving [{}] from list to sold.".format(self.address))
                     EstateSet.pop(self.id)
                     SoldEstateSet[self.id] = self
+                else:
+                    # estate not found in sold list, check on sale list again
+                    # if still not found, simply delete it.
+                    r = requests.post("https://bcrealestatemap.ca/svcFetchDB.php", data = {
+                        "sql": query,
+                        "sold": 0,
+                        "s": sign_query(query)
+                    })
+                    if r.status_code == 200:
+                        js = r.json()
+                        if "rows" in js:
+                            lineitem = js["rows"]
+                            if len(lineitem) == 0:
+                                print("Removing [{}] from list.".format(self.address))
+                                EstateSet.pop(self.id)
 
 class Worker(object):
     def __init__(self):
@@ -448,8 +468,9 @@ class Worker(object):
                 EstateSet[e.id] = e
                 print("Found new estate {}".format(e.address))
             else:
-                e = EstateSet[e.id]
-                e.do_update(l)
+                if e.id in EstateSet:
+                    e = EstateSet[e.id]
+                    e.do_update(l)
         print("Found {} new estates".format(len(self.new_estates)))
 
     def update_database(self):
@@ -530,6 +551,29 @@ class Worker(object):
                 content += e.html()
                 content += "</tr>\n"
             content += "</table>\n"
+        # generate list of estates with good sell price
+        sold_estates = self.filter_sold_estates_by_date(datetime.now() - timedelta(days=14), datetime.now())
+        good_price_sold = []
+        for estate in sold_estates:
+            rate = (estate.sell_price - estate.assessment_price[0]) / estate.sell_price
+            if rate < GOOD_SELL_PRICE_THRESHOLD:
+                good_price_sold.append(estate)
+        if len(good_price_sold):
+            content += u"<h2>低价成交房产（仅参考）</h2><br>\n"
+            content += '<table border="1" style="width:100%">\n'
+            content += u"""
+                <tr>
+                <th>ID</th>
+                <th>地址</th>
+                <th>区域</th>
+                <th>卖价</th>
+                <th>历史卖价</th>
+                <th>评估价</th>
+                <th>历史交易价</th>
+                </tr>
+                """
+            content += "\n".join(["<tr>{}</tr>".format(e.html(sell_price=True)) for e in good_price_sold])
+            content += "</table><br><br>\n"
         content += u"\n\n<p>总计 {} ({:.1f}%) 处房产未能找到BC省评估价格.</p>\n".format(estates_no_assessment, float(estates_no_assessment) / len(EstateSet) * 100)
         if self.debug:
             print(content)
@@ -541,7 +585,7 @@ class Worker(object):
         password = os.environ['smtp_password']
         msg = MIMEMultipart('alternative')
         msg['Subject'] = u"温哥华地产数据报告"
-        msg['To'] = EMAIL_LIST[0]
+        msg['To'] = ", ".join(EMAIL_LIST)
         msg['From'] = sender
         fnames = self.plot()
         images = [base64.b64encode(open(f, 'rb').read()).decode("utf-8") for f in fnames]
@@ -568,6 +612,7 @@ class Worker(object):
                     print("Time's up, do work!")
                     self.do_work()
                 except Exception as e:
+                    print(traceback.format_exc())
                     print("worker exception: {}".format(str(e)))
                 if self.debug:
                     sys.exit(0)
