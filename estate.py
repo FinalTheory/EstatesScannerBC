@@ -222,7 +222,7 @@ class Estate(object):
         content = '<td><a href="{}">{}</a></td>\n'.format(self.get_rew_link(), self.id)
         content += "<td>{}</td>\n".format(self.address)
         content += "<td>{}</td>\n".format(self.area)
-        if sell_price:
+        if self.is_sold():
             content += "<td>{}</td>\n".format(self.sell_price)
         else:
             content += "<td>{}</td>\n".format(self.list_price)
@@ -360,7 +360,7 @@ class Estate(object):
             print(self)
 
     def is_sold(self):
-        return self.sell_price is not None
+        return self.sell_price is not None and self.sell_price > 0.1
 
     def update(self):
         if (datetime.now() - self.last_update).days <= ESTATE_SLA:
@@ -475,11 +475,11 @@ class Worker(object):
 
     def update_database(self):
         sold_count = 0
-        for estate in EstateSet.values():
+        estates = list(EstateSet.values())
+        for estate in estates:
             estate.update()
             estate.update_bc_assessment()
         for estate in SoldEstateSet.values():
-            estate.update()
             estate.update_bc_assessment()
             if estate.id in EstateSet:
                 EstateSet.pop(estate.id)
@@ -551,15 +551,15 @@ class Worker(object):
                 content += e.html()
                 content += "</tr>\n"
             content += "</table>\n"
-        # generate list of estates with good sell price
-        sold_estates = self.filter_sold_estates_by_date(datetime.now() - timedelta(days=14), datetime.now())
+        # generate list of estates with good sell price within 1 month
+        sold_estates = self.filter_sold_estates_by_date(datetime.now() - timedelta(days=30), datetime.now())
         good_price_sold = []
         for estate in sold_estates:
             rate = (estate.sell_price - estate.assessment_price[0]) / estate.sell_price
             if rate < GOOD_SELL_PRICE_THRESHOLD:
                 good_price_sold.append(estate)
         if len(good_price_sold):
-            content += u"<h2>低价成交房产（仅参考）</h2><br>\n"
+            content += u"<h2>近一个月低价成交房产（仅参考）</h2><br>\n"
             content += '<table border="1" style="width:100%">\n'
             content += u"""
                 <tr>
