@@ -23,6 +23,7 @@ import numpy as np
 from dateutil import parser
 from matplotlib.ticker import FuncFormatter
 
+KEYWORD_LIST = ["rental", "suite"]
 EMAIL_LIST = ["finaltheory@hotmail.com", "dingfengqin@sohu.com"]
 EXCLUDE_CITY = ["Abbotsford", "Chilliwack", "Langley", "Mission", "unknown", "Maple Ridge", "Port Moody", "Delta"]
 
@@ -31,7 +32,7 @@ BC_ASSESSMENT_TIMEOUT = 2
 # days
 ESTATE_SLA = 3
 GOOD_SELL_PRICE_THRESHOLD = 0.10
-GOOD_PRICE_UPPER_THRESHOLD = 0.12
+GOOD_PRICE_UPPER_THRESHOLD = 0.15
 GOOD_PRICE_LOWER_THRESHOLD = -0.1
 
 SoldEstateSet = dict()
@@ -213,12 +214,13 @@ class Estate(object):
         self.area = None
         self.city = None
         self.rew = None
+        self.description = None
         self.do_update(lineitem)
 
     def __str__(self):
         return "{} | {} | {} | {} | {} | {} | {} | {}".format(self.id, self.city, self.area, self.address, self.list_price, self.history_price, self.assessment_price, self.history_sold_price)
 
-    def html(self, sell_price=False):
+    def html(self):
         content = '<td><a href="{}">{}</a></td>\n'.format(self.get_rew_link(), self.id)
         content += "<td>{}</td>\n".format(self.address)
         content += "<td>{}</td>\n".format(self.area)
@@ -249,6 +251,7 @@ class Estate(object):
         self.address = lineitem[5].lstrip("#").strip()
         self.area = lineitem[6]
         list_price = float(lineitem[7]) * 1000
+        self.description = lineitem[8].lower().split()
         if self.list_price is None:
             self.list_price = list_price
         else:
@@ -572,7 +575,33 @@ class Worker(object):
                 <th>历史交易价</th>
                 </tr>
                 """
-            content += "\n".join(["<tr>{}</tr>".format(e.html(sell_price=True)) for e in good_price_sold])
+            content += "\n".join(["<tr>{}</tr>".format(e.html()) for e in good_price_sold])
+            content += "</table><br><br>\n"
+        def list_contains(key_list, target):
+            for k in key_list:
+                if k not in target:
+                    return False
+            return True
+        keyword_match_estates = []
+        for estate in EstateSet.values():
+            if estate.description is not None and estate.city not in EXCLUDE_CITY and list_contains(KEYWORD_LIST, estate.description):
+                keyword_match_estates.append(estate)
+                break
+        if len(keyword_match_estates):
+            content += u"<h2>包含关键字房产</h2><br>\n"
+            content += '<table border="1" style="width:100%">\n'
+            content += u"""
+                <tr>
+                <th>ID</th>
+                <th>地址</th>
+                <th>区域</th>
+                <th>卖价</th>
+                <th>历史卖价</th>
+                <th>评估价</th>
+                <th>历史交易价</th>
+                </tr>
+                """
+            content += "\n".join(["<tr>{}</tr>".format(e.html()) for e in keyword_match_estates])
             content += "</table><br><br>\n"
         content += u"\n\n<p>总计 {} ({:.1f}%) 处房产未能找到BC省评估价格.</p>\n".format(estates_no_assessment, float(estates_no_assessment) / len(EstateSet) * 100)
         if self.debug:
@@ -715,7 +744,7 @@ if __name__ == '__main__':
         with open(SOLD_FILE_NAME, 'rb') as handle:
             SoldEstateSet = pickle.load(handle)
             print("Successfully loaded {} sold estates.".format(len(SoldEstateSet)))
-    # for e in list(EstateSet.values()) + list(SoldEstateSet.values()):
-    #     if getattr(e, "rew", None) is None:
-    #         setattr(e, "rew", None)
+    for e in list(EstateSet.values()) + list(SoldEstateSet.values()):
+        if getattr(e, "description", None) is None:
+            setattr(e, "description", None)
     main()
