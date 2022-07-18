@@ -416,7 +416,7 @@ class Worker(object):
         self.sold_query_list = []
         for i in range(0, STEPS):
             for j in range(0, STEPS):
-                query = r"SELECT * FROM *** WHERE (latitude BETWEEN {} AND {}) AND (longitude BETWEEN {} AND {}) AND (latitude <> 0 AND longitude <> 0) AND ((propertyClassCode = 0) OR (propertyClassCode = 1 AND type <> 'Apartment')) AND reciprocityOK = 0 AND (ABS(soldPrice) >= 600) AND (ABS(soldPrice) <= 1250) AND (entryDate BETWEEN '{}' AND '{}') ORDER BY entryDate DESC LIMIT 500".format(
+                query = r"SELECT * FROM *** WHERE (latitude BETWEEN {} AND {}) AND (longitude BETWEEN {} AND {}) AND (latitude <> 0 AND longitude <> 0) AND ((propertyClassCode = 0) OR (propertyClassCode = 1 AND type <> 'Apartment')) AND reciprocityOK = 0 AND (ABS(soldPrice) >= 600) AND (ABS(soldPrice) <= 1250) AND (bedroomCount >= 3) AND (bathroomCount >= 2) AND (entryDate BETWEEN '{}' AND '{}') ORDER BY entryDate DESC LIMIT 500".format(
                     LAT_START + i * LAT_STEP,
                     LAT_START + (i + 1) * LAT_STEP,
                     LON_START + j * LON_STEP,
@@ -429,7 +429,7 @@ class Worker(object):
             return
         for i in range(0, STEPS):
             for j in range(0, STEPS):
-                query = r"SELECT * FROM *** WHERE (latitude BETWEEN {} AND {}) AND (longitude BETWEEN {} AND {}) AND (latitude <> 0 AND longitude <> 0) AND ((propertyClassCode = 0) OR (propertyClassCode = 1 AND type <> 'Apartment')) AND parkingInfo LIKE '%Garage%' AND reciprocityOK = 0 AND (listingPrice >= 600) AND (listingPrice <= 1100) LIMIT 500".format(
+                query = r"SELECT * FROM *** WHERE (latitude BETWEEN {} AND {}) AND (longitude BETWEEN {} AND {}) AND (latitude <> 0 AND longitude <> 0) AND ((propertyClassCode = 0) OR (propertyClassCode = 1 AND type <> 'Apartment')) AND parkingInfo LIKE '%Garage%' AND reciprocityOK = 0 AND (listingPrice >= 600) AND (listingPrice <= 1100) AND (bedroomCount >= 3) AND (bathroomCount >= 2) LIMIT 500".format(
                     LAT_START + i * LAT_STEP,
                     LAT_START + (i + 1) * LAT_STEP,
                     LON_START + j * LON_STEP,
@@ -453,7 +453,7 @@ class Worker(object):
         self.init_query()
         self.new_estates = []
         self.new_sold_estate_count = 0
-        estates = self.query_estates(self.sold_query_list, 1)
+        estates = self.query_estates(self.sold_query_list, "sold")
         for l in estates:
             e = Estate(l)
             if e.id not in SoldEstateSet:
